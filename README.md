@@ -12,6 +12,12 @@ Aplicação estática e independente para conferir, no navegador, os códigos CA
 
 O arquivo é processado localmente no navegador. A aplicação preserva o pacote original do Excel e modifica somente as células de resultado na coluna N.
 
+## Histórico compartilhado
+
+A barra lateral consulta uma API pública separada e mostra as 20 validações mais recentes da equipe. O histórico armazena somente data e hora, resultado e quantidades de itens aprovados e pendentes. A planilha, o nome do arquivo e os códigos CATMAS não são enviados nem armazenados.
+
+API: `https://verificador-rp-historico.fjunior-alves-olivei.chatgpt.site/api/validations`
+
 ## Publicação separada
 
 Este diretório deve ser publicado em um repositório próprio no GitHub Pages. Ele não precisa ser incorporado ao repositório nem à interface da consulta CATMAS existente. A única dependência compartilhada é a leitura da base pública:
