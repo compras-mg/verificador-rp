@@ -22,7 +22,7 @@
     .history-empty { color:var(--muted); font-size:.82rem; line-height:1.45; padding:.6rem 0; }
     .history-item { width:100%; text-align:left; padding:.7rem; background:#f7f9fa; border:1px solid var(--line); border-radius:8px; font-family:Raleway,Arial,sans-serif; }
     .history-item:hover { border-color:#a9b6bc; background:#fff; }
-    .history-file { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.8rem; font-weight:700; }
+    .history-date { display:block; font-size:.8rem; font-weight:700; }
     .history-meta { display:block; color:var(--muted); font-size:.7rem; margin-top:.28rem; }
     .history-result { display:block; font-size:.72rem; font-weight:700; margin-top:.35rem; }
     .history-result.ok { color:var(--ok); }
@@ -74,7 +74,7 @@
   <div class="page-shell">
   <aside class="history" aria-label="Histórico de validações recentes">
     <h2>Validações recentes</h2>
-    <p class="history-subtitle">Salvas somente neste navegador.</p>
+    <p class="history-subtitle">Histórico público compartilhado entre a equipe.</p>
     <div class="history-list" id="historyList"></div>
   </aside>
   <main>
@@ -90,7 +90,7 @@
       <div class="actions"><button class="primary" id="verifyButton" disabled>Verificar planilha</button></div>
       <div class="privacy">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span>A planilha é processada no navegador e não é enviada a um servidor.</span>
+        <span>A planilha é processada no navegador e não é enviada. Somente data, resultado e quantidades são registrados no histórico público.</span>
       </div>
       <section id="status" aria-live="polite"></section>
     </section>
@@ -104,39 +104,57 @@
   (() => {
     'use strict';
     const DB_URL = 'https://compras-mg.github.io/catmas/data.db.gz';
+    const HISTORY_API = 'https://verificador-rp-historico.fjunior-alves-olivei.chatgpt.site/api/validations';
     const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     const PKG_REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
     const $ = id => document.getElementById(id);
     const input = $('fileInput'), drop = $('dropZone'), verify = $('verifyButton'), status = $('status'), fileName = $('fileName'), historyList = $('historyList');
-    const HISTORY_KEY = 'verificador-rp-history-v1';
     let selectedFile = null, dbPromise = null, workbookContext = null, verification = null;
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     }
     function show(html) { status.style.display = 'block'; status.innerHTML = html; }
-    function loadHistory() {
-      try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
-      catch { return []; }
+    function historyDate(value) {
+      const normalized = String(value).includes('T') ? String(value) : String(value).replace(' ','T') + 'Z';
+      return new Date(normalized).toLocaleString('pt-BR');
     }
-    function renderHistory() {
-      const history = loadHistory();
-      if (!history.length) { historyList.innerHTML = '<p class="history-empty">As conferências feitas neste navegador aparecerão aqui.</p>'; return; }
-      historyList.innerHTML = history.map((entry,index) => `<button class="history-item" type="button" data-history-index="${index}"><span class="history-file">${escapeHtml(entry.fileName)}</span><span class="history-meta">${escapeHtml(new Date(entry.checkedAt).toLocaleString('pt-BR'))} · ${entry.total} ${entry.total===1?'item':'itens'}</span><span class="history-result ${entry.problemCount?'bad':'ok'}">${entry.problemCount?`${entry.problemCount} ${entry.problemCount===1?'pendência':'pendências'}`:'Tudo OK para RP'}</span></button>`).join('');
+    async function renderHistory() {
+      historyList.innerHTML = '<p class="history-empty">Carregando validações…</p>';
+      let history;
+      try {
+        const response = await fetch(`${HISTORY_API}?limit=20`, { cache:'no-store' });
+        if (!response.ok) throw new Error(`Erro ${response.status}`);
+        history = (await response.json()).validations || [];
+      } catch (error) {
+        console.warn('Histórico indisponível',error);
+        historyList.innerHTML = '<p class="history-empty">Não foi possível carregar o histórico agora. A verificação da planilha continua disponível.</p>';
+        return;
+      }
+      if (!history.length) { historyList.innerHTML = '<p class="history-empty">As validações da equipe aparecerão aqui.</p>'; return; }
+      historyList.innerHTML = history.map((entry,index) => `<button class="history-item" type="button" data-history-index="${index}"><span class="history-date">${escapeHtml(historyDate(entry.createdAt))}</span><span class="history-meta">${entry.total} ${entry.total===1?'item':'itens'}</span><span class="history-result ${entry.issues?'bad':'ok'}">${entry.issues?`${entry.issues} ${entry.issues===1?'pendência':'pendências'}`:'Tudo OK para RP'}</span></button>`).join('');
       historyList.querySelectorAll('[data-history-index]').forEach(button => button.addEventListener('click', () => renderHistoryEntry(history[Number(button.dataset.historyIndex)])));
     }
-    function recordHistory(results) {
-      const problems = results.filter(r => r.result !== 'ok').map(r => ({originalCode:r.originalCode,description:r.description,situation:r.situation,reason:r.reason}));
-      const entry = { id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), fileName:selectedFile.name, checkedAt:new Date().toISOString(), total:results.length, okCount:results.length-problems.length, problemCount:problems.length, problems };
-      const history = loadHistory(); history.unshift(entry); localStorage.setItem(HISTORY_KEY,JSON.stringify(history.slice(0,20))); renderHistory();
+    async function recordHistory(results) {
+      const issues = results.filter(r => r.result !== 'ok').length;
+      try {
+        const response = await fetch(HISTORY_API, {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({ total:results.length, ok:results.length-issues, issues, status:issues?'issues':'ok' })
+        });
+        if (!response.ok) throw new Error(`Erro ${response.status}`);
+        await renderHistory();
+      } catch (error) {
+        console.warn('Não foi possível registrar no histórico compartilhado',error);
+      }
     }
     function renderHistoryEntry(entry) {
-      const rows = entry.problems.map(r => `<tr><td>${escapeHtml(r.originalCode)}</td><td>${escapeHtml(r.description || '—')}</td><td>${escapeHtml(r.situation || '—')}</td><td><span class="tag bad">${escapeHtml(r.reason)}</span></td></tr>`).join('');
-      const notice = entry.problemCount
-        ? `<div class="notice bad"><strong>${entry.problemCount} ${entry.problemCount===1?'item precisava':'itens precisavam'} de ajuste.</strong> Resultado registrado em ${escapeHtml(new Date(entry.checkedAt).toLocaleString('pt-BR'))}.</div>`
-        : `<div class="notice ok"><strong>Todos os itens estavam OK para RP.</strong> Resultado registrado em ${escapeHtml(new Date(entry.checkedAt).toLocaleString('pt-BR'))}.</div>`;
-      show(`${notice}<div class="summary"><div class="metric"><strong>${entry.total}</strong><span>itens analisados</span></div><div class="metric"><strong class="success">${entry.okCount}</strong><span>OK para RP</span></div><div class="metric"><strong class="${entry.problemCount?'failure':'success'}">${entry.problemCount}</strong><span>com pendência</span></div></div>${entry.problemCount?`<div class="table-wrap"><table><thead><tr><th>Código</th><th>Especificação CATMAS</th><th>Situação</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}<p class="footnote">Histórico de ${escapeHtml(entry.fileName)}. Para gerar uma planilha, selecione e verifique novamente o arquivo original.</p>`);
+      const notice = entry.issues
+        ? `<div class="notice bad"><strong>${entry.issues} ${entry.issues===1?'item precisava':'itens precisavam'} de ajuste.</strong> Resultado registrado em ${escapeHtml(historyDate(entry.createdAt))}.</div>`
+        : `<div class="notice ok"><strong>Todos os itens estavam OK para RP.</strong> Resultado registrado em ${escapeHtml(historyDate(entry.createdAt))}.</div>`;
+      show(`${notice}<div class="summary"><div class="metric"><strong>${entry.total}</strong><span>itens analisados</span></div><div class="metric"><strong class="success">${entry.ok}</strong><span>OK para RP</span></div><div class="metric"><strong class="${entry.issues?'failure':'success'}">${entry.issues}</strong><span>com pendência</span></div></div><p class="footnote">O histórico público não armazena a planilha, o nome do arquivo nem os códigos CATMAS. Para ver os itens ou gerar uma planilha, selecione e verifique novamente o arquivo original.</p>`);
       status.scrollIntoView({behavior:'smooth',block:'start'});
     }
     function setFile(file) {
@@ -274,12 +292,13 @@
         const {db,updated} = await loadDatabase();
         verification = queryItems(db, workbookContext.items);
         renderResults(verification,updated);
-        recordHistory(verification);
+        void recordHistory(verification);
       } catch (error) {
         console.error(error); show(`<div class="notice bad"><strong>Não foi possível verificar a planilha.</strong><br>${escapeHtml(error.message)}</div>`);
       } finally { verify.disabled = false; }
     });
-    renderHistory();
+    try { localStorage.removeItem('verificador-rp-history-v1'); } catch {}
+    void renderHistory();
   })();
   </script>
 </body>
