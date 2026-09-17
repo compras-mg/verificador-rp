@@ -13,16 +13,16 @@
     body { margin:0; color:var(--ink); background:var(--bg); font-family:Raleway,Arial,sans-serif; }
     header { background:var(--red); color:#fff; padding:1.15rem max(1.2rem,calc((100% - 960px)/2)); }
     header h1 { margin:0; font-size:1.35rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; }
-    .page-shell { width:min(1240px,calc(100% - 2rem)); margin:2rem auto 4rem; display:grid; grid-template-columns:260px minmax(0,1fr); gap:1.25rem; align-items:start; }
+    .page-shell { width:min(1240px,calc(100% - 2rem)); margin:2rem auto 4rem; display:grid; grid-template-columns:minmax(0,280px) minmax(0,1fr); gap:1.25rem; align-items:start; }
     main { min-width:0; }
     .history { background:#fff; border:1px solid var(--line); border-radius:12px; padding:1rem; box-shadow:0 8px 24px rgba(33,54,64,.06); position:sticky; top:1rem; }
     .history h2 { font-size:1rem; margin:0; }
     .history-subtitle { color:var(--muted); font-size:.75rem; line-height:1.4; margin:.35rem 0 .9rem; }
-    .history-list { display:grid; gap:.55rem; }
+    .history-list { display:grid; min-width:0; gap:.55rem; }
     .history-empty { color:var(--muted); font-size:.82rem; line-height:1.45; padding:.6rem 0; }
-    .history-item { width:100%; text-align:left; padding:.7rem; background:#f7f9fa; border:1px solid var(--line); border-radius:8px; font-family:Raleway,Arial,sans-serif; }
+    .history-item { display:block; width:100%; min-width:0; max-width:100%; overflow:hidden; text-align:left; padding:.7rem; background:#f7f9fa; border:1px solid var(--line); border-radius:8px; font-family:Raleway,Arial,sans-serif; }
     .history-item:hover { border-color:#a9b6bc; background:#fff; }
-    .history-file { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.8rem; font-weight:700; }
+    .history-file { display:block; max-width:100%; overflow-wrap:anywhere; word-break:break-word; font-size:.8rem; font-weight:700; line-height:1.35; }
     .history-meta { display:block; color:var(--muted); font-size:.7rem; margin-top:.28rem; }
     .history-result { display:block; font-size:.72rem; font-weight:700; margin-top:.35rem; }
     .history-result.ok { color:var(--ok); }
