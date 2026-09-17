@@ -22,7 +22,7 @@
     .history-empty { color:var(--muted); font-size:.82rem; line-height:1.45; padding:.6rem 0; }
     .history-item { width:100%; text-align:left; padding:.7rem; background:#f7f9fa; border:1px solid var(--line); border-radius:8px; font-family:Raleway,Arial,sans-serif; }
     .history-item:hover { border-color:#a9b6bc; background:#fff; }
-    .history-date { display:block; font-size:.8rem; font-weight:700; }
+    .history-file { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.8rem; font-weight:700; }
     .history-meta { display:block; color:var(--muted); font-size:.7rem; margin-top:.28rem; }
     .history-result { display:block; font-size:.72rem; font-weight:700; margin-top:.35rem; }
     .history-result.ok { color:var(--ok); }
@@ -74,7 +74,7 @@
   <div class="page-shell">
   <aside class="history" aria-label="Histórico de validações recentes">
     <h2>Validações recentes</h2>
-    <p class="history-subtitle">Histórico público compartilhado entre a equipe.</p>
+    <p class="history-subtitle">Histórico público compartilhado, com o nome de cada arquivo analisado.</p>
     <div class="history-list" id="historyList"></div>
   </aside>
   <main>
@@ -90,7 +90,7 @@
       <div class="actions"><button class="primary" id="verifyButton" disabled>Verificar planilha</button></div>
       <div class="privacy">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span>A planilha é processada no navegador e não é enviada. Somente data, resultado e quantidades são registrados no histórico público.</span>
+        <span>A planilha é processada no navegador e não é enviada. Somente o nome do arquivo, a data, o resultado e as quantidades são registrados no histórico público.</span>
       </div>
       <section id="status" aria-live="polite"></section>
     </section>
@@ -133,7 +133,10 @@
         return;
       }
       if (!history.length) { historyList.innerHTML = '<p class="history-empty">As validações da equipe aparecerão aqui.</p>'; return; }
-      historyList.innerHTML = history.map((entry,index) => `<button class="history-item" type="button" data-history-index="${index}"><span class="history-date">${escapeHtml(historyDate(entry.createdAt))}</span><span class="history-meta">${entry.total} ${entry.total===1?'item':'itens'}</span><span class="history-result ${entry.issues?'bad':'ok'}">${entry.issues?`${entry.issues} ${entry.issues===1?'pendência':'pendências'}`:'Tudo OK para RP'}</span></button>`).join('');
+      historyList.innerHTML = history.map((entry,index) => {
+        const publicFileName = entry.fileName || 'Teste de implantação — arquivo não registrado';
+        return `<button class="history-item" type="button" data-history-index="${index}"><span class="history-file" title="${escapeHtml(publicFileName)}">${escapeHtml(publicFileName)}</span><span class="history-meta">${escapeHtml(historyDate(entry.createdAt))} · ${entry.total} ${entry.total===1?'item':'itens'}</span><span class="history-result ${entry.issues?'bad':'ok'}">${entry.issues?`${entry.issues} ${entry.issues===1?'pendência':'pendências'}`:'Tudo OK para RP'}</span></button>`;
+      }).join('');
       historyList.querySelectorAll('[data-history-index]').forEach(button => button.addEventListener('click', () => renderHistoryEntry(history[Number(button.dataset.historyIndex)])));
     }
     async function recordHistory(results) {
@@ -142,7 +145,7 @@
         const response = await fetch(HISTORY_API, {
           method:'POST',
           headers:{'content-type':'application/json'},
-          body:JSON.stringify({ total:results.length, ok:results.length-issues, issues, status:issues?'issues':'ok' })
+          body:JSON.stringify({ fileName:selectedFile.name, total:results.length, ok:results.length-issues, issues, status:issues?'issues':'ok' })
         });
         if (!response.ok) throw new Error(`Erro ${response.status}`);
         await renderHistory();
@@ -151,10 +154,11 @@
       }
     }
     function renderHistoryEntry(entry) {
+      const publicFileName = entry.fileName || 'Teste de implantação — arquivo não registrado';
       const notice = entry.issues
         ? `<div class="notice bad"><strong>${entry.issues} ${entry.issues===1?'item precisava':'itens precisavam'} de ajuste.</strong> Resultado registrado em ${escapeHtml(historyDate(entry.createdAt))}.</div>`
         : `<div class="notice ok"><strong>Todos os itens estavam OK para RP.</strong> Resultado registrado em ${escapeHtml(historyDate(entry.createdAt))}.</div>`;
-      show(`${notice}<div class="summary"><div class="metric"><strong>${entry.total}</strong><span>itens analisados</span></div><div class="metric"><strong class="success">${entry.ok}</strong><span>OK para RP</span></div><div class="metric"><strong class="${entry.issues?'failure':'success'}">${entry.issues}</strong><span>com pendência</span></div></div><p class="footnote">O histórico público não armazena a planilha, o nome do arquivo nem os códigos CATMAS. Para ver os itens ou gerar uma planilha, selecione e verifique novamente o arquivo original.</p>`);
+      show(`${notice}<div class="summary"><div class="metric"><strong>${entry.total}</strong><span>itens analisados</span></div><div class="metric"><strong class="success">${entry.ok}</strong><span>OK para RP</span></div><div class="metric"><strong class="${entry.issues?'failure':'success'}">${entry.issues}</strong><span>com pendência</span></div></div><p class="footnote"><strong>Arquivo:</strong> ${escapeHtml(publicFileName)}. O histórico público não armazena o conteúdo da planilha nem os códigos CATMAS.</p>`);
       status.scrollIntoView({behavior:'smooth',block:'start'});
     }
     function setFile(file) {
