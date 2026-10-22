@@ -1,10 +1,10 @@
 # Verificador RP
 
-## Extensão CATMAS RP para o SEI-MG — versão 0.5.8
+## Extensão CATMAS RP para o SEI-MG — versão 0.5.9
 
 A extensão funciona dentro do SEI-MG, consulta os itens CATMAS diretamente no Portal de Compras, gera a planilha conferida e automatiza a inclusão da planilha e a preparação do memorando público. A assinatura do memorando permanece manual.
 
-- [Baixar a extensão 0.5.8 (ZIP)](https://github.com/compras-mg/verificador-rp/raw/refs/heads/main/dist/verificador-rp-sei-0.5.8.zip)
+- [Baixar a extensão 0.5.9 (ZIP)](https://github.com/compras-mg/verificador-rp/raw/refs/heads/main/dist/verificador-rp-sei-0.5.9.zip)
 - [Código da extensão](extensao/verificador-rp-sei/)
 - [Instalação, funcionamento e histórico de versões](extensao/verificador-rp-sei/README.md)
 - [Testes locais](extensao/tests/)
@@ -12,11 +12,13 @@ A extensão funciona dentro do SEI-MG, consulta os itens CATMAS diretamente no P
 
 Para instalar, descompacte o ZIP e selecione a pasta `verificador-rp-sei` em **Carregar sem compactação**, na página `chrome://extensions` ou `edge://extensions`. Para atualizar uma instalação existente, substitua os arquivos da pasta instalada, recarregue a extensão e atualize o SEI.
 
-Esta versão inclui consulta oficial, preservação das colunas do Excel, remoção de documentos duplicados e um único botão **CATMAS / RP**, em duas linhas, alinhado à barra de ações do SEI.
+A versão 0.5.9 compara a especificação de **B:F** com o Portal de Compras e alerta sobre conteúdo em **G (complementação da especificação)** e **H (especificação longa)**. As pendências indicam linha, coluna e motivo, mesmo quando o código está OK para RP. A planilha conferida e o memorando ficam disponíveis quando todas as linhas estão sem pendências.
+
+Também preserva as colunas e mesclagens do Excel, evita documentos duplicados e mantém um único botão **CATMAS / RP**, em duas linhas, alinhado à barra de ações do SEI. Os testes locais passaram com planilhas fictícias e portal simulado; a nova conferência ainda requer validação no SEI real.
 
 ## Ferramenta web anterior
 
-A página `index.html` mantém a ferramenta web anterior, descrita abaixo. A extensão 0.5.8 está na pasta `extensao/` e consulta diretamente o portal oficial.
+A página `index.html` mantém a ferramenta web anterior, descrita abaixo. A extensão 0.5.9 está na pasta `extensao/` e consulta diretamente o portal oficial.
 
 Aplicação estática e independente para conferir, no navegador, os códigos CATMAS de uma planilha de solicitação de Registro de Preços.
 

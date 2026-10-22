@@ -76,13 +76,20 @@
       .metric strong { display: block; font-size: 19px; }
       .success { color: #167348; }
       .failure { color: #a33b24; }
-      .table-wrap { overflow: auto; max-height: 260px; border: 1px solid #d9e1e5; border-radius: 8px; }
-      table { width: 100%; border-collapse: collapse; min-width: 640px; }
+      .table-wrap { overflow: auto; max-height: 380px; border: 1px solid #d9e1e5; border-radius: 8px; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .code-column { width: 92px; }
       th, td { padding: 8px; border-bottom: 1px solid #e0e6e8; text-align: left; vertical-align: top; font-size: 12px; }
+      td { overflow-wrap: anywhere; }
       th { position: sticky; top: 0; background: #eef3f5; }
-      .tag { display: inline-block; padding: 3px 6px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+      .tag { display: inline-block; padding: 3px 6px; border-radius: 8px; font-weight: 700; }
       .tag.ok { color: #11643e; background: #e2f4eb; }
       .tag.bad { color: #8b311d; background: #ffe6df; }
+      .checks { margin: 8px 0; padding-left: 18px; }
+      .checks li { margin: 7px 0; }
+      .comparison { margin-top: 8px; }
+      .comparison summary { cursor: pointer; font-weight: 700; }
+      .cell-text { margin: 5px 0 10px; padding: 8px; border-left: 3px solid #ccd6da; background: #f4f7f8; white-space: pre-wrap; overflow-wrap: anywhere; }
       .field { display: grid; gap: 4px; margin: 9px 0; }
       .field label { font-size: 12px; font-weight: 700; }
       .field input { width: 100%; padding: 8px 9px; border: 1px solid #bbc8cd; border-radius: 6px; color: #26343b; background: #fff; }
@@ -626,11 +633,32 @@
     return [...parent.childNodes].find(node => node.nodeType === 1 && node.localName === localName) || null;
   }
 
+  function spreadsheetText(container) {
+    if (!container) return '';
+    // Excel can split a single value into formatted runs. Phonetic annotations
+    // (rPh) are not part of the displayed cell text.
+    return [...container.childNodes].filter(node => node.nodeType === 1)
+      .map(node => node.localName === 't' ? node.textContent
+        : node.localName === 'r' ? (directChild(node, 't')?.textContent ?? '') : '').join('');
+  }
+
   function cellValue(cell, sharedStrings) {
     if (!cell) return '';
-    if (cell.getAttribute('t') === 'inlineStr') return directChild(directChild(cell, 'is') || cell, 't')?.textContent ?? '';
+    if (cell.getAttribute('t') === 'inlineStr') return spreadsheetText(directChild(cell, 'is'));
     const raw = directChild(cell, 'v')?.textContent ?? '';
     return cell.getAttribute('t') === 's' ? (sharedStrings[Number(raw)] ?? '') : raw;
+  }
+
+  function specificationReadError(cell, sharedStrings) {
+    if (!cell) return false;
+    const type = cell.getAttribute('t');
+    const value = directChild(cell, 'v');
+    if (type === 'e' || (directChild(cell, 'f') && !value)) return true;
+    if (type === 's') {
+      const index = value?.textContent ?? '';
+      return !/^\d+$/.test(index) || sharedStrings[Number(index)] === undefined;
+    }
+    return false;
   }
 
   async function parseWorkbook(file) {
@@ -656,14 +684,17 @@
     if (zip.file('xl/sharedStrings.xml')) {
       sharedDoc = xml(await zip.file('xl/sharedStrings.xml').async('text'));
       sharedStrings = [...sharedDoc.getElementsByTagNameNS(NS, 'si')]
-        .map(item => [...item.getElementsByTagNameNS(NS, 't')].map(text => text.textContent).join(''));
+        .map(spreadsheetText);
     }
 
     const rows = [...sheetDoc.getElementsByTagNameNS(NS, 'row')];
     const cells = new Map();
+    const unreadableSpecifications = new Set();
     for (const row of rows) {
       for (const cell of row.getElementsByTagNameNS(NS, 'c')) {
-        cells.set(cell.getAttribute('r'), cellValue(cell, sharedStrings).trim());
+        const address = cell.getAttribute('r');
+        cells.set(address, cellValue(cell, sharedStrings).trim());
+        if (/^[BGH]\d+$/.test(address) && specificationReadError(cell, sharedStrings)) unreadableSpecifications.add(address);
       }
     }
 
@@ -674,7 +705,12 @@
       const raw = cells.get(`A${rowNumber}`) || '';
       if (!/^\d{1,12}$/.test(raw) || Number(raw) === 0) continue;
       const candidates = [...new Set([raw, raw.length < 9 ? raw.padStart(9, '0') : raw])];
-      items.push({ row: rowNumber, originalCode: raw, candidates });
+      items.push({ row: rowNumber, originalCode: raw, candidates,
+        // B is the anchor of the B:F merged specification cells in the form.
+        specification: cells.get(`B${rowNumber}`) || '',
+        specificationComplement: cells.get(`G${rowNumber}`) || '',
+        longSpecification: cells.get(`H${rowNumber}`) || '',
+        specificationReadErrors: ['B', 'G', 'H'].filter(column => unreadableSpecifications.has(`${column}${rowNumber}`)) });
     }
     if (!items.length) throw new Error('nenhum código CATMAS foi encontrado na coluna A, a partir da linha 11');
 
@@ -699,7 +735,23 @@
           reason: `Não verificado: ${error.message}` });
       }
     }
-    return items.map(item => ({ ...item, ...byCode.get(item.originalCode.padStart(9, '0')) }));
+    return items.map(item => RPItemChecks.verifyItem(item, byCode.get(item.originalCode.padStart(9, '0'))));
+  }
+
+  function renderItemChecks(result) {
+    const issues = result.checks.filter(check => check.status !== 'ok');
+    const specification = result.checks.find(check => check.column === 'B');
+    return `<p><strong>RP no portal:</strong> ${escapeHtml(result.rpReason)}</p>
+      <p class="muted">Situação no portal: ${escapeHtml(result.situation || 'não confirmada')}</p>
+      ${issues.length ? `<ul class="checks">${issues.map(check => `<li><strong>${escapeHtml(check.field)} · ${escapeHtml(check.cell)}</strong><br>${escapeHtml(check.reason)}</li>`).join('')}</ul>` : '<p class="success">Especificação conferida; G e H sem conteúdo.</p>'}
+      <details class="comparison"${specification.status !== 'ok' ? ' open' : ''}>
+        <summary>Comparar especificações</summary>
+        <p><strong>Planilha · B${result.row}:F${result.row}</strong></p>
+        <div class="cell-text">${escapeHtml(result.specification || '(vazia)')}</div>
+        <p><strong>Portal de Compras</strong></p>
+        <div class="cell-text">${escapeHtml(result.description || '(não disponível)')}</div>
+      </details>
+      ${result.checks.filter(check => check.column !== 'B' && check.status !== 'ok').map(check => `<details class="comparison"><summary>Ver conteúdo de ${escapeHtml(check.cell)}</summary><div class="cell-text">${escapeHtml(check.value || '(conteúdo não disponível)')}</div></details>`).join('')}`;
   }
 
   function renderResults(results, updated) {
@@ -708,25 +760,25 @@
     const allOk = problem === 0;
     const rows = results.map(result => `
       <tr>
-        <td>${escapeHtml(result.originalCode)}</td>
-        <td>${escapeHtml(result.description || '—')}</td>
-        <td>${escapeHtml(result.situation || '—')}</td>
-        <td title="${escapeHtml(result.checkedAt ? `Consulta: ${new Date(result.checkedAt).toLocaleString('pt-BR')} · ID: ${result.portalId ?? '—'} · Versão: ${result.portalVersion ?? '—'}` : 'Consulta não confirmada')}"><span class="tag ${result.result === 'ok' ? 'ok' : 'bad'}">${escapeHtml(result.reason)}</span></td>
+        <td>${escapeHtml(result.originalCode)}<p class="muted">Linha ${result.row}</p><span class="tag ${result.result === 'ok' ? 'ok' : 'bad'}">${escapeHtml(result.reason)}</span></td>
+        <td title="${escapeHtml(result.checkedAt ? `Consulta: ${new Date(result.checkedAt).toLocaleString('pt-BR')} · ID: ${result.portalId ?? '—'} · Versão: ${result.portalVersion ?? '—'}` : 'Consulta não confirmada')}">${renderItemChecks(result)}</td>
       </tr>`).join('');
 
     resultView.innerHTML = `
       <h2>${allOk ? 'Verificação concluída' : 'Verificação com pendências'}</h2>
       <p class="${allOk ? 'success' : 'failure'}">
-        <strong>${allOk ? 'Todos os itens estão habilitados para Registro de Preços.' : `${problem} ${problem === 1 ? 'item apresenta pendência' : 'itens apresentam pendências'} de habilitação ou consulta.`}</strong>
+        <strong>${allOk ? 'Todos os itens estão habilitados para RP, com especificação conferida e sem conteúdo em G/H.' : `${problem} ${problem === 1 ? 'item requer análise' : 'itens requerem análise'}. Confira os motivos por linha e coluna abaixo.`}</strong>
       </p>
       <div class="metrics">
         <div class="metric"><strong>${results.length}</strong><span>analisados</span></div>
-        <div class="metric"><strong class="success">${ok}</strong><span>OK para RP</span></div>
-        <div class="metric"><strong class="${problem ? 'failure' : 'success'}">${problem}</strong><span>pendências</span></div>
+        <div class="metric"><strong class="success">${ok}</strong><span>sem pendências</span></div>
+        <div class="metric"><strong class="${problem ? 'failure' : 'success'}">${problem}</strong><span>com pendências</span></div>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Código</th><th>Especificação</th><th>Situação</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr><th class="code-column">Código / linha</th><th>Conferência da especificação</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
+      <p class="muted">A especificação de B:F é comparada ao portal, desconsiderando maiúsculas, espaços extras e quebras de linha. Conteúdo em G ou H exige análise manual, mesmo com o código OK para RP.</p>
+      ${allOk ? '' : '<p class="muted">Siga o fluxo normal de análise para tratar as pendências e faça uma nova verificação após os ajustes. A planilha conferida e o memorando ficam disponíveis quando todas as linhas estiverem sem pendências.</p>'}
       <p class="muted">Arquivo: ${escapeHtml(state.selectedFile.name)}${updated ? ` · Consulta ao Portal de Compras concluída em ${escapeHtml(new Date(updated).toLocaleString('pt-BR'))}` : ''}</p>
       <div class="actions">
         ${allOk ? '<button id="downloadVerified" class="button secondary" type="button">Baixar planilha conferida</button><button id="uploadVerified" class="button secondary" type="button">Anexar planilha conferida ao SEI</button><button id="generateMemo" class="button primary" type="button">Gerar memorando padrão</button>' : ''}

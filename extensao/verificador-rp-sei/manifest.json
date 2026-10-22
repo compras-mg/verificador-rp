@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Verificador RP para o SEI-MG",
   "short_name": "Verificador RP",
-  "version": "0.5.8",
-  "description": "Localiza planilhas no SEI-MG, verifica os itens para Registro de Preços e prepara o memorando padrão.",
+  "version": "0.5.9",
+  "description": "Confere códigos CATMAS, especificações e complementações das planilhas de RP no SEI-MG e prepara o memorando padrão.",
   "action": {
     "default_title": "Abrir o Verificador RP"
   },
@@ -24,6 +24,7 @@
       "js": [
         "vendor/jszip.min.js",
         "xlsx-preserve.js",
+        "item-checks.js",
         "content.js"
       ],
       "run_at": "document_idle"

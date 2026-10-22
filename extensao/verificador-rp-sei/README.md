@@ -1,30 +1,51 @@
 # Verificador RP para o SEI-MG
 
-Extensão experimental para Google Chrome que localiza a planilha de Registro de Preços no processo aberto do SEI-MG, verifica os códigos CATMAS e prepara o memorando padrão.
+Extensão experimental para Google Chrome e Microsoft Edge que localiza a planilha de Registro de Preços no processo aberto do SEI-MG, verifica os códigos CATMAS, confere a especificação de B:F, alerta sobre conteúdo em G/H e prepara o memorando padrão quando não há pendências.
 
 ## Instalação para teste
 
-1. Descompacte o arquivo `verificador-rp-sei-0.5.8.zip` em uma pasta permanente.
+1. Descompacte o arquivo `verificador-rp-sei-0.5.9.zip` em uma pasta permanente.
 2. No Chrome, digite `chrome://extensions` na barra de endereços.
 3. Ative **Modo do desenvolvedor**.
 4. Clique em **Carregar sem compactação**.
 5. Selecione a pasta `verificador-rp-sei` que contém o arquivo `manifest.json`.
-6. Abra ou atualize o SEI-MG e entre em um processo. O botão vermelho **RP** aparecerá no final da barra de ações superior do processo.
+6. Abra ou atualize o SEI-MG e entre em um processo. O botão vermelho **CATMAS RP** aparecerá no final da barra de ações superior do processo.
 
 O botão não aparece na página inicial do SEI. O ícone da extensão na barra do Chrome também abre e fecha o painel quando há um processo aberto.
 
 ## Fluxo de uso
 
 1. Entre normalmente no SEI-MG e abra um processo.
-2. Clique em **Verificador RP**.
+2. Clique em **CATMAS RP**.
 3. Escolha a planilha identificada no processo. Se ela não aparecer, use **Selecionar do computador**.
-4. Aguarde a verificação dos códigos CATMAS.
-5. Se todos os itens estiverem habilitados, baixe a planilha conferida e clique em **Gerar memorando padrão**.
-6. Confira os campos que não puderam ser obtidos automaticamente.
-7. Copie o memorando e abra a inclusão de documento no SEI.
-8. Escolha o tipo **Memorando**, cole o texto, revise e assine manualmente.
+4. Aguarde a consulta ao portal e a conferência das especificações de cada linha.
+5. Se houver pendências, confira a linha, a coluna e o motivo indicado. **Comparar especificações** mostra o texto da planilha e o texto do portal; os alertas de G/H permitem abrir o conteúdo dessas células. Trate os apontamentos no fluxo normal de análise e verifique novamente após os ajustes.
+6. Quando todas as linhas estiverem sem pendências, use **Baixar planilha conferida** ou **Anexar planilha conferida ao SEI**.
+7. Clique em **Gerar memorando padrão**, confira os campos e a referência da planilha anexada.
+8. Clique em **Criar memorando Público no SEI** ou copie o texto para inclusão manual. Revise o documento e assine manualmente.
 
-Ao gerar o memorando, a extensão tenta localizar o memorando imediatamente anterior à planilha analisada. O número SEI da nova planilha conferida permanece em branco até que o arquivo seja incluído no processo.
+Ao gerar o memorando, a extensão tenta localizar o memorando anterior à planilha analisada e a última Planilha Conferida incluída no processo. Revise as referências preenchidas.
+
+## Conferência das colunas — versão 0.5.9
+
+Na aba **FORMULÁRIO**, a partir da linha 11:
+
+- **A — Código CATMAS:** consulta a habilitação para RP diretamente no Portal de Compras.
+- **B:F — Especificação do item:** lê B, a célula inicial do intervalo mesclado, e compara seu texto integral com `especificacaoCompleta` retornada pelo portal. Aceita diferenças de maiúsculas/minúsculas, espaços extras e quebras de linha. Números, unidades, pontuação, acentos e demais diferenças de conteúdo geram pendência. Especificação vazia também gera pendência.
+- **G — Complementação da especificação:** qualquer conteúdo não vazio gera alerta de análise manual.
+- **H — Especificação longa:** qualquer conteúdo não vazio gera alerta de análise manual.
+
+G/H são alertas de existência de conteúdo, sem interpretação ou aprovação automática. Texto como “Sim”, “Não se aplica”, traços ou zero também é mostrado para conferência. Células vazias ou apenas com espaços/quebras de linha não geram alerta. Não remova conteúdo necessário apenas para eliminar um aviso; a análise do conteúdo continua com o analista.
+
+O painel separa **RP no portal** do **resultado da linha**. Um código pode estar OK para RP e a linha continuar com pendência por diferença em B:F ou conteúdo em G/H. A consulta é reaproveitada por código na mesma verificação, mas cada linha é analisada individualmente. Uma nova verificação consulta novamente o portal.
+
+Erros do Excel, fórmulas sem resultado armazenado e referências de texto inválidas em B/G/H ficam como não verificados. A extensão lê o resultado salvo das fórmulas; não recalcula o arquivo. Se necessário, recalcule e salve no Excel antes de repetir a conferência.
+
+Os botões de planilha conferida e memorando só ficam disponíveis quando todas as linhas passam pela conferência completa. A exportação continua alterando apenas N para “OK”, preservando B:F, G/H, as mesclagens, outras colunas e demais partes do XLSX.
+
+### Validação da 0.5.9
+
+Testes locais com dados fictícios cobrem especificação mesclada B:F, textos formatados, erros de leitura, diferenças de medidas, complementação em G, especificação longa em H, códigos repetidos com textos diferentes, falha do portal, bloqueio dos botões em caso de pendência e exportação sem perda de colunas. O teste de interface usa o Chrome em sessão isolada com o portal simulado; não representa uma análise de processo real no SEI.
 
 ## Privacidade e permissões
 
