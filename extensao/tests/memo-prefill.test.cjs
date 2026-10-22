@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(__dirname+'/../verificador-rp-sei/content.js','utf8');
+const scan=source.slice(source.indexOf('  function scanSeiPage()'),source.indexOf('  function processContext()'));
+const links=[{label:'Planilha CONSULTA CATMAS (900000004)',url:'https://www.sei.mg.gov.br/sei/controlador.php?acao=arvore_visualizar&id_documento=800000001'},{label:'Memorando 338 (900000005)',url:'https://www.sei.mg.gov.br/sei/controlador.php?acao=arvore_visualizar&id_documento=800000002'},{label:'Planilha Conferida (900000006)',url:'https://www.sei.mg.gov.br/sei/controlador.php?acao=arvore_visualizar&id_documento=800000003'}];
+const ctx=vm.createContext({PROCESS_RE:/\b\d{4}\.\d{2}\.\d{7}\/\d{4}-\d{2}\b/g,walkDocuments:cb=>cb({body:{innerText:'0000.00.0000001/2000-00'},querySelectorAll:()=>links}),elementLabel:e=>e.label,elementRawAction:e=>e.url,extractUrls:s=>[s],extractSeiNumber:s=>(s.match(/\b\d{7,12}\b/g)||[]).at(-1)||''});
+vm.runInContext(scan+'globalThis.result=scanSeiPage();',ctx);
+const memo=ctx.result.documents.find(d=>d.label.startsWith('Memorando'));
+assert.ok(memo);assert.equal(memo.label.match(/\bmemorando(?:\s+n[ºo]\.?)?\s+(\d+)/i)[1],'338');assert.equal(memo.seiNumber,'900000005');
+assert.equal(ctx.result.documents.find(d=>/Planilha Conferida/.test(d.label)).seiNumber,'900000006');
+console.log('Árvore de teste do SEI: memorando 338, SEI 900000005 e planilha 900000006 reconhecidos.');

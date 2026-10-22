@@ -1,0 +1,24 @@
+const vm = require('node:vm');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const listeners=[];const created=[];const storage={};
+const chrome={runtime:{id:'test',onMessage:{addListener:f=>listeners.push(f)}},action:{onClicked:{addListener:()=>{}}},tabs:{sendMessage:async()=>{},onCreated:{addListener:f=>created.push(f)},onRemoved:{addListener:()=>{}}},storage:{session:{get:async key=>({[key]:storage[key]}),set:async data=>Object.assign(storage,JSON.parse(JSON.stringify(data))),remove:async key=>delete storage[key]}},scripting:{executeScript:async()=>[{result:{filled:true}}]}};
+const context=vm.createContext({chrome,importScripts:()=>{},fillSeiMemo:()=>{},console,Date,URL,CatmasPortal:{}});
+vm.runInContext(fs.readFileSync(__dirname+'/../verificador-rp-sei/background.js','utf8'),context);
+const sender={id:'test',tab:{id:1},frameId:0,url:'https://sei.mg.gov.br/sei/controlador.php'};
+const request=(type,extra={},who=sender)=>new Promise(resolve=>listeners[1]({type:'VRP_MEMO_'+type,...extra},who,resolve));
+(async()=>{
+ const data={recipient:'Pessoa',recipientUnit:'Diretoria',salutation:'Senhora Diretora',subject:'RP',bodyHtml:'Texto',processNumber:'0000.00.0000001/2000-00'};
+ assert.ok((await request('START',{data})).draft);
+ assert.ok((await request('START',{data})).error);
+ assert.equal((await request('CLAIM',{stage:'type',next:'metadata'})).claimed,true);
+ assert.equal((await request('CLAIM',{stage:'type',next:'metadata'})).claimed,false);
+ await request('CLAIM',{stage:'metadata',next:'editor'});
+ await created[0]({id:2,openerTabId:1});
+ assert.equal(storage['memo:1'],undefined);assert.equal(storage['memo:2'].stage,'editor');
+ const editor={...sender,tab:{id:2}};
+ assert.equal((await request('FILL',{},editor)).filled,true);
+ await request('STOP',{},editor);assert.equal(storage['memo:2'].stage,'stopped');
+ assert.ok((await request('START',{data},{...sender,url:'https://example.com/'})).error);
+ console.log('Fluxo: origem, prevenção de duplicação, transição única, nova aba, preenchimento e cancelamento passaram.');
+})().catch(e=>{console.error(e);process.exitCode=1});

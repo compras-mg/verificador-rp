@@ -1,0 +1,27 @@
+const vm = require('node:vm');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const listeners=[];const created=[];const storage={};
+const chrome={runtime:{id:'test',onMessage:{addListener:f=>listeners.push(f)}},action:{onClicked:{addListener:()=>{}}},tabs:{sendMessage:async()=>{},onCreated:{addListener:f=>created.push(f)},onRemoved:{addListener:()=>{}}},storage:{session:{get:async key=>({[key]:storage[key]}),set:async data=>Object.assign(storage,JSON.parse(JSON.stringify(data))),remove:async key=>delete storage[key]}},scripting:{executeScript:async()=>[{result:{filled:true}}]}};
+const context=vm.createContext({chrome,importScripts:()=>{},fillSeiMemo:()=>{},console,Date,URL,CatmasPortal:{}});
+vm.runInContext(fs.readFileSync(__dirname+'/../verificador-rp-sei/background.js','utf8'),context);
+const sender={id:'test',tab:{id:1},frameId:0,url:'https://sei.mg.gov.br/sei/controlador.php'};
+const request=(type,extra={},who=sender)=>new Promise(resolve=>listeners[1]({type:'VRP_MEMO_'+type,...extra},who,resolve));
+(async()=>{
+ const data={base64:'UEsDBA==',name:'teste_CONFERIDA.xlsx',processNumber:'0000.00.0000001/2000-00'};
+ const upload=(type,extra={},who=sender)=>new Promise(resolve=>listeners[2]({type:'VRP_UPLOAD_'+type,...extra},who,resolve));
+ let r=await upload('START',data);assert.ok(r.job);assert.equal(r.job.base64,undefined);
+ assert.ok((await upload('START',data)).error);
+ assert.ok((await request('START',{data:{}})).error);
+ assert.equal((await upload('CLAIM',{stage:'type',next:'form'})).claimed,true);
+ assert.equal((await upload('CLAIM',{stage:'type',next:'form'})).claimed,false);
+ await created[1]({id:2,openerTabId:1});assert.equal(storage['upload:1'],undefined);
+ const child={...sender,tab:{id:2}};
+ assert.equal((await upload('FILE',{},child)).base64,data.base64);
+ await upload('CLAIM',{stage:'form',next:'uploading'},child);
+ await upload('CLAIM',{stage:'uploading',next:'submitted'},child);
+ assert.equal(storage['upload:2'].base64,undefined);
+ assert.ok((await upload('START',data,{...sender,url:'https://example.com/'})).error);
+ assert.ok((await upload('START',{...data,base64:'!invalid'})).error);
+ console.log('Upload: proteção de origem, duplicação, conflito com memorando, nova aba, transições e descarte dos bytes passaram.');
+})().catch(e=>{console.error(e);process.exitCode=1});

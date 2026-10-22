@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Verificador RP para o SEI-MG",
+  "short_name": "Verificador RP",
+  "version": "0.5.8",
+  "description": "Localiza planilhas no SEI-MG, verifica os itens para Registro de Preços e prepara o memorando padrão.",
+  "action": {
+    "default_title": "Abrir o Verificador RP"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://sei.mg.gov.br/sei/*",
+    "https://www.sei.mg.gov.br/sei/*",
+    "https://www1.compras.mg.gov.br/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://sei.mg.gov.br/sei/*",
+        "https://www.sei.mg.gov.br/sei/*"
+      ],
+      "js": [
+        "vendor/jszip.min.js",
+        "xlsx-preserve.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://sei.mg.gov.br/sei/*",
+        "https://www.sei.mg.gov.br/sei/*"
+      ],
+      "js": [
+        "memo-flow.js",
+        "upload-flow.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "scripting"
+  ]
+}
